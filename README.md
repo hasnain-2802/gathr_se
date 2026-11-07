@@ -1,4 +1,3 @@
-cat > README.md << 'EOF'
 # Gathr: Discover and Manage Events Across the City
 
 Team BigTech: Yusra Sheraz, Fatima Arif, Hasnain Abbas, Hiba Faisal
