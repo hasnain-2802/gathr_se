@@ -1,0 +1,17 @@
+# secrets
+.env
+.env.local
+.env.*.local
+
+# dependencies
+node_modules/
+
+# builds
+.next/
+dist/
+build/
+
+# system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
