@@ -17,6 +17,3 @@ React (Next.js), Tailwind CSS, Node.js with Express, PostgreSQL on Supabase, Sup
 main (stable), dev (integration), feature/*, fix/*, hotfix/*.
 Changes go in through pull requests with one review.
 EOF
-git add README.md
-git commit -m "docs: add project README"
-git push
