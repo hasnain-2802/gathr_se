@@ -1,28 +1,38 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabaseClient';
 
 const heading = { className: 'font-serif' };
 const body = { className: 'font-sans' };
 
+{/*Event Cards*/} 
 const events = [
   { tag: 'Music', title: 'Indie Band Showcase', time: 'Nov 25 · 8:00 PM', image: '/music.jpg', color: 'bg-[#7c4dff]', rotate: '-rotate-3' },
   { tag: 'Social', title: 'Open Mic & Poetry Night', time: 'Nov 18 · 6:30 PM', image: '/social.jpg', color: 'bg-[#c026a3]', rotate: 'rotate-2' },
-  { tag: 'Tech', title: 'Backyard Movie Night', time: 'Nov 20 · 10:00 AM', image: '/music.jpg', color: 'bg-[#5ce1e6]', rotate: '-rotate-2' },
+  { tag: 'Social', title: 'Backyard Movie Night', time: 'Nov 20 · 10:00 AM', image: '/music.jpg',color: 'bg-[#5ce1e6]',  rotate: '-rotate-2' },
 ];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const router = useRouter();
 
-  function handleLogin(e) {
-    e.preventDefault();
-    setError('');
+async function handleLogin(e) {
+  e.preventDefault();
+  setError('');
 
-    // Placeholder: Supabase login gets connected here later.
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
     setError('Invalid email or password');
+    return;
   }
+
+  router.push('/'); // placeholder: the role-based redirect comes later
+}
   return (
  <div
   className={`${body.className} min-h-screen text-white flex flex-col`}
@@ -33,7 +43,7 @@ export default function LoginPage() {
   }}
 >
 
-      {/* Header */}
+      {/* Header (The Logo)*/}
       <header className="flex items-center gap-3 px-8 py-6">
         <div className="w-10 h-10 rounded-xl bg-[#c026a3] flex items-center justify-center font-bold">
           G
