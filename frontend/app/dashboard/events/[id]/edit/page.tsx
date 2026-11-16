@@ -1,16 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Sidebar from '@/components/Sidebar';
 import { ApiError, fetchEvent, updateEvent } from '@/lib/api';
 import type { OrganizerEvent, UpdateEventPayload } from '@/lib/api';
 
-/** Convert an ISO string to the `datetime-local` input format (YYYY-MM-DDTHH:MM) */
-function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const CATEGORIES = ['music', 'sports', 'workshops', 'food', 'tech'];
+
+const inputStyles =
+  'w-full rounded-xl bg-[#2a1b47] border border-[#3d2a63] px-4 py-3 text-sm text-white placeholder-purple-200/50 outline-none focus:border-[#c026a3] transition-colors';
+
+function Row({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-[160px_1fr] items-start">
+      <label htmlFor={htmlFor} className="text-sm font-semibold text-purple-200 sm:pt-3">
+        {label}
+      </label>
+      <div>{children}</div>
+    </div>
+  );
 }
 
 export default function EditEventPage() {
@@ -21,19 +31,19 @@ export default function EditEventPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // Form fields
+  // Form states matching Page 10
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [capacity, setCapacity] = useState('');
+  const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [venue, setVenue] = useState('');
   const [location, setLocation] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
 
-  // Load the event
   useEffect(() => {
     let ignore = false;
     setLoading(true);
@@ -44,18 +54,25 @@ export default function EditEventPage() {
         if (ignore) return;
         setEvent(ev);
         setTitle(ev.title);
-        setDescription(ev.description);
-        setStartTime(toLocalInput(ev.start_time));
-        setEndTime(toLocalInput(ev.end_time));
+        setCategory(ev.category.toLowerCase());
+        setCapacity(String(ev.capacity));
         setVenue(ev.venue);
         setLocation(ev.location);
-        setCapacity(String(ev.capacity));
-        setCategory(ev.category);
+        setDescription(ev.description);
+
+        // Parse ISO start/end into date, time
+        const start = new Date(ev.start_time);
+        const end = new Date(ev.end_time);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+
+        setDate(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`);
+        setStartTime(`${pad(start.getHours())}:${pad(start.getMinutes())}`);
+        setEndTime(`${pad(end.getHours())}:${pad(end.getMinutes())}`);
       })
       .catch((e) => {
         if (ignore) return;
         if (e instanceof ApiError) setError(e.message);
-        else setError('Failed to load event.');
+        else setError('Failed to load event details.');
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -66,226 +83,259 @@ export default function EditEventPage() {
     };
   }, [params.id]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setSuccess(false);
-    setSaving(true);
+    setSuccess(null);
 
+    const start = new Date(`${date}T${startTime}`);
+    const end = new Date(`${date}T${endTime}`);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      setError('Please provide a valid date and times');
+      return;
+    }
+    if (end <= start) {
+      setError('End time must be after start time');
+      return;
+    }
+
+    const capNum = parseInt(capacity, 10);
+    if (!Number.isInteger(capNum) || capNum <= 0) {
+      setError('Max seats must be a whole number greater than 0');
+      return;
+    }
+
+    if (event && capNum < (event.rsvp_count || 0)) {
+      setError(`Capacity cannot be lower than current confirmed RSVPs (${event.rsvp_count})`);
+      return;
+    }
+
+    setSaving(true);
     try {
       const payload: UpdateEventPayload = {
         title: title.trim(),
         description: description.trim(),
-        start_time: new Date(startTime).toISOString(),
-        end_time: new Date(endTime).toISOString(),
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
         venue: venue.trim(),
         location: location.trim(),
-        capacity: parseInt(capacity, 10),
+        capacity: capNum,
         category: category.trim(),
       };
 
       const updated = await updateEvent(params.id, payload);
       setEvent(updated);
-      setSuccess(true);
+      setSuccess(`"${updated.title}" was updated successfully.`);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
-      else setError('Something went wrong.');
+      else setError('Failed to save changes.');
     } finally {
       setSaving(false);
     }
   }
 
-  // ---------- Render ----------
-
-  if (loading) {
-    return (
-      <main className="mx-auto max-w-2xl p-6">
-        <p className="text-gray-500">Loading event…</p>
-      </main>
-    );
-  }
-
-  if (error && !event) {
-    return (
-      <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-md bg-red-50 p-4 text-red-700">{error}</p>
-        <Link href="/dashboard" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
-          ← Back to Dashboard
-        </Link>
-      </main>
-    );
-  }
-
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Edit Event</h1>
-        <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
-          ← Back to Dashboard
-        </Link>
-      </div>
+    <div
+      className="min-h-screen text-white flex"
+      style={{
+        backgroundColor: '#120726',
+        backgroundImage:
+          'radial-gradient(circle at 10% 15%, #4c1d95 0%, transparent 40%), radial-gradient(circle at 90% 85%, #831843 0%, transparent 45%)',
+      }}
+    >
+      {/* Sidebar */}
+      <Sidebar />
 
-      {event && (
-        <p className="mb-4 text-sm text-gray-500">
-          Confirmed RSVPs: <span className="font-semibold text-gray-800">{event.rsvp_count}</span> / {event.capacity} capacity.
-          Capacity cannot be set below the current RSVP count.
-        </p>
-      )}
+      {/* Main Content Area matching Page 10 in PDF */}
+      <main className="flex-1 p-8 lg:p-10 max-w-5xl overflow-x-hidden">
+        {/* Back Link & Search */}
+        <div className="flex items-center justify-between mb-4">
+          <Link
+            href="/dashboard"
+            className="text-xs text-purple-300 hover:text-white underline transition-colors"
+          >
+            ← Back to Dashboard
+          </Link>
 
-      {error && (
-        <p className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>
-      )}
-      {success && (
-        <p className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-700">Event updated successfully!</p>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Title */}
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-            Title <span className="text-red-500">*</span>
-          </label>
           <input
-            id="title"
             type="text"
-            maxLength={120}
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <p className="mt-1 text-xs text-gray-400">{title.length}/120 characters</p>
-        </div>
-
-        {/* Description */}
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-            Description <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            id="description"
-            required
-            rows={4}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="Search events..."
+            className="w-64 bg-[#1e1038] border border-[#3d2766] rounded-full px-4 py-2 text-xs text-white placeholder-purple-300/50 outline-none focus:border-[#c026a3] transition-colors"
           />
         </div>
 
-        {/* Start / End times */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="start_time" className="block text-sm font-medium text-gray-700">
-              Start Time <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="start_time"
-              type="datetime-local"
-              required
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="end_time" className="block text-sm font-medium text-gray-700">
-              End Time <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="end_time"
-              type="datetime-local"
-              required
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </div>
+        {/* Title */}
+        <h1 className="font-serif text-4xl lg:text-5xl font-medium tracking-tight mb-8">
+          Edit Event
+        </h1>
 
-        {/* Venue / Location */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="venue" className="block text-sm font-medium text-gray-700">
-              Venue <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="venue"
-              type="text"
-              required
-              value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-              Location <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="location"
-              type="text"
-              required
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        {/* Capacity / Category */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="capacity" className="block text-sm font-medium text-gray-700">
-              Capacity <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="capacity"
-              type="number"
-              min={1}
-              required
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            {event && (
-              <p className="mt-1 text-xs text-gray-400">
-                Minimum: {event.rsvp_count} (current confirmed RSVPs)
+        {loading ? (
+          <p className="text-purple-300/70 py-10">Loading event details...</p>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-6 rounded-3xl bg-[#1b0d36]/90 border border-[#351d5c] p-8 shadow-2xl"
+          >
+            {/* Feedback Banners */}
+            {error && (
+              <p className="rounded-xl bg-pink-500/10 border border-pink-500/30 p-3.5 text-sm text-pink-300">
+                {error}
               </p>
             )}
-          </div>
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-              Category <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="category"
-              type="text"
-              required
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </div>
+            {success && (
+              <p className="rounded-xl bg-emerald-400/10 border border-emerald-400/30 p-3.5 text-sm text-emerald-300">
+                {success}
+              </p>
+            )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save Changes'}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push('/dashboard')}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </main>
+            {/* Event Title */}
+            <Row label="Event Title:" htmlFor="title">
+              <input
+                id="title"
+                type="text"
+                maxLength={120}
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Intro to React & Tailwind"
+                className={inputStyles}
+              />
+              <p className="mt-1 text-xs text-purple-300/50">{title.length}/120 characters</p>
+            </Row>
+
+            {/* Category and Max Seats Row */}
+            <Row label="Category:" htmlFor="category">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                <select
+                  id="category"
+                  required
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className={`${inputStyles} flex-1 capitalize`}
+                >
+                  <option value="" className="bg-[#1b0d36] text-purple-300">
+                    Select Category
+                  </option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c} className="bg-[#1b0d36] text-white capitalize">
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-2">
+                  <label htmlFor="capacity" className="whitespace-nowrap text-sm font-semibold text-purple-200">
+                    Max Seats:
+                  </label>
+                  <input
+                    id="capacity"
+                    type="number"
+                    min={event?.rsvp_count || 1}
+                    required
+                    value={capacity}
+                    onChange={(e) => setCapacity(e.target.value)}
+                    className={`${inputStyles} !w-24 text-center`}
+                  />
+                </div>
+              </div>
+              {event && (
+                <p className="mt-1.5 text-xs text-purple-300/60">
+                  Confirmed RSVPs: <span className="text-[#5ce1e6] font-semibold">{event.rsvp_count}</span> (capacity cannot be lowered below this count).
+                </p>
+              )}
+            </Row>
+
+            {/* Date & Time Row */}
+            <Row label="Date & Time:" htmlFor="date">
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  id="date"
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={`${inputStyles} !w-auto flex-1 min-w-[150px]`}
+                />
+                <input
+                  id="startTime"
+                  type="time"
+                  required
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className={`${inputStyles} !w-auto flex-1 min-w-[120px]`}
+                />
+                <span className="text-sm text-purple-200">to</span>
+                <input
+                  id="endTime"
+                  type="time"
+                  required
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className={`${inputStyles} !w-auto flex-1 min-w-[120px]`}
+                />
+              </div>
+            </Row>
+
+            {/* Venue */}
+            <Row label="Venue/Location:" htmlFor="venue">
+              <input
+                id="venue"
+                type="text"
+                required
+                value={venue}
+                onChange={(e) => setVenue(e.target.value)}
+                placeholder="Auditorium A, Hall 3"
+                className={inputStyles}
+              />
+            </Row>
+
+            {/* Area / City */}
+            <Row label="Area / City:" htmlFor="location">
+              <input
+                id="location"
+                type="text"
+                required
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., Clifton (used for feed filtering)"
+                className={inputStyles}
+              />
+            </Row>
+
+            {/* Description & Requirements */}
+            <Row label="Description & Requirements:" htmlFor="description">
+              <textarea
+                id="description"
+                rows={5}
+                required
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter event details, agenda, speaker info, etc..."
+                className={inputStyles}
+              />
+            </Row>
+
+            {/* Action Buttons matching Page 10 */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-[#351d5c]/60">
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                className="rounded-full border border-[#c026a3] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#c026a3]/20 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-full bg-[#c026a3] px-6 py-2.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(192,38,163,0.5)] hover:brightness-110 disabled:opacity-60 transition-all"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        )}
+      </main>
+    </div>
   );
 }
