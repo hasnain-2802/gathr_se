@@ -24,14 +24,26 @@ async function handleLogin(e) {
   e.preventDefault();
   setError('');
   {/*It sends the email and password to Supabase so it can check whether the credentials are valid*/}
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     setError('Invalid email or password');
     return;
   }
 
-  router.push('/'); // placeholder: the role-based redirect comes later
+  // Store token for API requests
+  if (data?.session?.access_token) {
+    localStorage.setItem('access_token', data.session.access_token);
+    localStorage.setItem('gathr_token', data.session.access_token);
+  }
+
+  // Redirect based on role
+  const role = data?.user?.app_metadata?.role;
+  if (role === 'organizer') {
+    router.push('/dashboard');
+  } else {
+    router.push('/dashboard'); // default to dashboard for testing
+  }
 }
   return (
  <div
