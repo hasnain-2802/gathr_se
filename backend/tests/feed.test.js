@@ -1,4 +1,4 @@
-jest.mock('../src/config/supabase', () => {
+jest.mock('../src/lib/supabase', () => {
   const users = {
     'org-token': { id: 'org-1', app_metadata: { role: 'organizer' } },
     'att-token': { id: 'att-1', app_metadata: { role: 'attendee' } },
@@ -30,7 +30,7 @@ jest.mock('../src/config/supabase', () => {
 
 const request = require('supertest');
 const app = require('../src/app');
-const supabase = require('../src/config/supabase');
+const supabase = require('../src/lib/supabase');
 
 const get = (query = '', token = 'att-token') => {
   const r = request(app).get(`/api/v1/events${query}`);

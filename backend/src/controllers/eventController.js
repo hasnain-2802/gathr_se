@@ -1,8 +1,39 @@
-const supabase = require('../config/supabase');
+const supabase = require('../lib/supabase');
 const { validateEvent } = require('../validators/eventValidator');
+const { HttpError } = require('../utils/httpError');
+const { updateEvent, getEventById, getConfirmedRsvpCount } = require('../services/eventService');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// GET /api/v1/events/:id
+async function getEvent(req, res) {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) {
+    throw new HttpError(400, 'Invalid event ID');
+  }
+
+  const event = await getEventById(id);
+  if (!event) {
+    throw new HttpError(404, 'Event not found');
+  }
+
+  const rsvpCount = await getConfirmedRsvpCount(id);
+  res.json({ data: { ...event, rsvp_count: rsvpCount } });
+}
+
+// PUT /api/v1/events/:id  (GTR-23 / GTR-24)
+async function editEvent(req, res) {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) {
+    throw new HttpError(400, 'Invalid event ID');
+  }
+
+  const updated = await updateEvent(id, req.user.id, req.body);
+  res.json({ data: updated });
+}
 
 // POST /api/v1/events
-exports.createEvent = async (req, res) => {
+async function createEvent(req, res) {
   const errors = validateEvent(req.body);
   if (errors.length) {
     return res.status(400).json({ code: 400, message: errors.join('; ') });
@@ -21,7 +52,7 @@ exports.createEvent = async (req, res) => {
       location: b.location.trim(),
       capacity: b.capacity,
       category: b.category.trim().toLowerCase(),
-      status: 'active', // active + future start = shows up in GET /events
+      status: 'active',
     })
     .select()
     .single();
@@ -31,7 +62,7 @@ exports.createEvent = async (req, res) => {
     return res.status(500).json({ code: 500, message: 'Could not create event' });
   }
   return res.status(201).json({ data });
-};
+}
 
 // Upper date limit for the Today / Week / Month filter
 function rangeEnd(range) {
@@ -49,7 +80,7 @@ function rangeEnd(range) {
 // GET /api/v1/events  (discovery feed)
 // Only active events that start in the future, soonest first.
 // Optional filters: ?category=tech  ?location=clifton  ?range=today|week|month
-exports.listEvents = async (req, res) => {
+async function listEvents(req, res) {
   const { category, location, range } = req.query;
 
   let query = supabase
@@ -80,4 +111,6 @@ exports.listEvents = async (req, res) => {
     return res.status(500).json({ code: 500, message: 'Could not load events' });
   }
   return res.status(200).json({ data });
-};
+}
+
+module.exports = { getEvent, editEvent, createEvent, listEvents };

@@ -1,19 +1,31 @@
 const express = require('express');
 const cors = require('cors');
+const routes = require('./routes');
+const { notFound, errorHandler } = require('./middleware/errors');
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  process.env.CORS_ORIGIN || 'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps or curl) or if in allowed list
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true); // permissive for local dev
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
-app.use('/api/v1/events', require('./routes/events'));
+app.use('/api/v1', routes);
 
-// Malformed JSON and other errors -> the API's standard { code, message } shape
-app.use((err, req, res, next) => {
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ code: 400, message: 'Invalid JSON body' });
-  }
-  console.error(err);
-  res.status(500).json({ code: 500, message: 'Server error' });
-});
+app.use(notFound);
+app.use(errorHandler);
 
 module.exports = app;
