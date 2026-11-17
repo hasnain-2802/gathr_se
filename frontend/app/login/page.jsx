@@ -11,7 +11,7 @@ const body = { className: 'font-sans' };
 const events = [
   { tag: 'Music', title: 'Indie Band Showcase', time: 'Nov 25 · 8:00 PM', image: '/music.jpg', color: 'bg-[#7c4dff]', rotate: '-rotate-3' },
   { tag: 'Social', title: 'Open Mic & Poetry Night', time: 'Nov 18 · 6:30 PM', image: '/social.jpg', color: 'bg-[#c026a3]', rotate: 'rotate-2' },
-  { tag: 'Social', title: 'Backyard Movie Night', time: 'Nov 20 · 10:00 AM', image: '/music.jpg',color: 'bg-[#5ce1e6]',  rotate: '-rotate-2' },
+  { tag: 'Social', title: 'Backyard Movie Night', time: 'Nov 20 · 10:00 AM', image: '/movie.jpg',color: 'bg-[#5ce1e6]',  rotate: '-rotate-2' },
 ];
 
 export default function LoginPage() {
@@ -23,7 +23,7 @@ export default function LoginPage() {
 async function handleLogin(e) {
   e.preventDefault();
   setError('');
-
+  {/*It sends the email and password to Supabase so it can check whether the credentials are valid*/}
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
