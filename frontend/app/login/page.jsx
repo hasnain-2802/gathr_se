@@ -37,12 +37,12 @@ async function handleLogin(e) {
     localStorage.setItem('gathr_token', data.session.access_token);
   }
 
-  // Redirect based on role
-  const role = data?.user?.app_metadata?.role;
+ const role = data?.user?.user_metadata?.role || data?.user?.app_metadata?.role;
+
   if (role === 'organizer') {
     router.push('/dashboard');
   } else {
-    router.push('/dashboard'); // default to dashboard for testing
+    router.push('/events'); // Match Fatima's exact folder route
   }
 }
   return (

@@ -89,9 +89,17 @@ export default function SignupPage() {
       return;
     }
 
-    if (data.session) {
-      // Signed in straight away (email confirmation is OFF)
-      router.push('/'); // placeholder: the role-based redirect comes later
+   if (data.session) {
+      if (data.session.access_token) {
+        localStorage.setItem('access_token', data.session.access_token);
+        localStorage.setItem('gathr_token', data.session.access_token);
+      }
+
+      if (role === 'organizer') {
+        router.push('/dashboard');
+      } else {
+        router.push('/events'); // Match Fatima's exact folder route
+      }
     } else {
       // Email confirmation is ON
       setMessage('Account created! Check your email to confirm it, then log in.');
