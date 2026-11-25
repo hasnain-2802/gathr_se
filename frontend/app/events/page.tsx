@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 type EventItem = {
   id: string;
@@ -120,11 +121,13 @@ export default function ExploreEventsPage() {
     );
   }, [events, search]);
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();   {/*so supabase cancels session*/}
     localStorage.removeItem('access_token');
-    window.location.href = '/';
+    localStorage.removeItem('gathr_token');  {/*delete both tokens from browser's local storage*/}
+    window.location.href = '/login';  {/*send user to login*/}
   };
-
+  
   const navItem = (label: string, active = false, href?: string): React.ReactNode => {
     const style: React.CSSProperties = {
       display: 'block',

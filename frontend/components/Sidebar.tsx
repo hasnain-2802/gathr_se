@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
+
 
 export default function Sidebar({ organizerName = 'Organizer' }: { organizerName?: string }) {
   const pathname = usePathname();
@@ -68,12 +70,14 @@ export default function Sidebar({ organizerName = 'Organizer' }: { organizerName
       {/* Logout */}
       <div className="pt-6">
         <button
-          onClick={() => {
+        type="button"
+          onClick={async() => {
+            await supabase.auth.signOut(); {/*if we delete tokens without calling this,supabase still thinks the session is active in teh background*/}
             if (typeof window !== 'undefined') {
               localStorage.removeItem('access_token');
               localStorage.removeItem('gathr_token');
               window.location.href = '/login';
-            }
+            } 
           }}
           className="text-xs text-purple-300 hover:text-white transition-colors"
         >
